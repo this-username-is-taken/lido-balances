@@ -21,8 +21,8 @@ if not jwt_token: raise Error("set SUBSTREAMS_API_TOKEN")
 endpoint = "api.streamingfast.io:443"
 package_pb = "substreams-erc20-holdings-v0.1.0.spkg"
 output_modules = ["store_balance"]
-start_block = 11473216
-end_block = start_block + 1_000_000
+start_block = 15900000
+end_block = start_block + 1
 account_balances = {}
 
 def substreams_service():
@@ -51,6 +51,7 @@ def main():
         fork_steps=[STEP_IRREVERSIBLE],
         modules=pkg.modules,
         output_modules=output_modules,
+        initial_store_snapshot_for_modules=output_modules
     ))
 
     start_time = time.time()
@@ -59,19 +60,29 @@ def main():
         # progress message
         if response.progress:
             print("time elapsed: %.2fs" % (time.time() - start_time))
+        
+        snapshot = MessageToDict(response.snapshot_data)
 
-        data = MessageToDict(response.data)
+        if snapshot and snapshot["moduleName"] == output_modules[0]:
+            snapshot_deltas = snapshot["deltas"]
+            if snapshot_deltas:
+                deltas = snapshot_deltas["deltas"]
+                for delta in deltas:
+                    key = delta["key"]
+                    value = base64.b64decode(delta["newValue"])
+                    account_balances[key] = value
 
-        if data:
-            for output in data["outputs"]:
-                if output["name"] == output_modules[0]:
-                    store_deltas = output["storeDeltas"]
-                    if store_deltas:
-                        deltas = store_deltas["deltas"]
-                        for delta in deltas:
-                            key = delta["key"]
-                            value = base64.b64decode(delta["newValue"])
-                            account_balances[key] = value
+        # data = MessageToDict(response.data)
+        # if data:
+        #     for output in data["outputs"]:
+        #         if output["name"] == output_modules[0]:
+        #             store_deltas = output["storeDeltas"]
+        #             if store_deltas:
+        #                 deltas = store_deltas["deltas"]
+        #                 for delta in deltas:
+        #                     key = delta["key"]
+        #                     value = base64.b64decode(delta["newValue"])
+        #                     account_balances[key] = value
     
     print_balances(account_balances)
 
